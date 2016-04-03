@@ -56,14 +56,12 @@
 .flip .card .front {
   position: absolute;
   z-index: 1;
-  /*background-image: url("chrome-extension://dmeifbfaplnedddldbeflojbbeeeejlm/images/logo-50.png")*/;
   background-repeat: no-repeat;
   color: white;
   cursor: pointer;
 }
 .flip .card .back {
-/*  background-image: url("chrome-extension://dmeifbfaplnedddldbeflojbbeeeejlm/images/plus-50.png");
-*/  background-repeat: no-repeat;
+  background-repeat: no-repeat;
   color: black;
   cursor: pointer;
     
