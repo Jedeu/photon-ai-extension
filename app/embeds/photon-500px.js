@@ -1,20 +1,25 @@
 'use strict';
+/* globals $:false, chrome:false, console:false */
 
 $(function() {
 
-  const logoWidth = 50;
+  const iconWidth = 50;
   const horizontalDistanceFromWindow = 11;
-  const verticalDistanceFromWindow = 2;
 
+  // on document ready, checks if user is logged in, then displays the button accordingly
   chrome.storage.sync.get(function(value) {
-    if (value['user_id']) {
-      addZeHoverEffect();
+    if (value.user_id) {
+      // home page
+      addZeHoverEffect('.link');
+      // discovery popular, upcoming
+      addZeHoverEffect('.photo_link');
     } else {
       removeZeButtonz();
     }
   });
 
-  function checkICanHazHttps(imagePath) {
+  // adds https to image path if not already there
+  function iCanHazHttps(imagePath) {
     if (imagePath.match(/https/g) || imagePath.match(/http/g)) {
       return imagePath;
     }
@@ -24,8 +29,9 @@ $(function() {
     }
   }
 
+  // makes an invisible image in order to get dimensions of full size image
   function getNativeDimensions(imagePath, callback) {
-      var completePath = checkICanHazHttps(imagePath);
+      var completePath = iCanHazHttps(imagePath);
       var output = {
           url: completePath,
           width: 0,
@@ -46,7 +52,8 @@ $(function() {
       });
   }
 
-  function cleanUpStyle(styleAttrib) {
+  // parses styleAttrib string into a hash of styles
+  function createStyleObj(styleAttrib) {
       var parts = styleAttrib.split("; ");
       var obj = {};
       for (var i = 0; i < parts.length; i++) {
@@ -56,41 +63,50 @@ $(function() {
       return obj;
   }
 
+  // Gets the photo URL from the style attribute of the photo container
   function createPhotoUrl(styleAttrib) {
-    console.log(styleAttrib);
-      var cleanStyle = cleanUpStyle(styleAttrib);
-      var photoUrl = cleanStyle['background-image'];
-      var linkLinter = /\(([^\)]+)\)/;
-      var theLink = ((photoUrl.match(linkLinter)[1]));
-      return theLink;
+    var cleanStyle = createStyleObj(styleAttrib);
+    var photoUrl = cleanStyle['background-image'];
+    var linkLinter = /\(([^\)]+)\)/;
+    var theLink = ((photoUrl.match(linkLinter)[1]));
+    return theLink;
   }
 
-  function parseImg(imgObj) {
+  // sends image url, width, and height to background script (popup.js)
+  // popup.js can then send ajax request to the web app to add the photo to the database
+  function sendImage(imgObj) {
       chrome.runtime.sendMessage({ url: imgObj.url, width: imgObj.width, height: imgObj.height });
   }
 
-  function addZeButton($imgLink) {
-    $imgLink.prepend($('<div>', { class: 'flip' }));
-    var $cardContainer = $imgLink.children('.flip');
+  // adds the photonAI button to the image container
+  function addZeButton($imgContainer) {
+    var logoURL = chrome.extension.getURL('images/logo-' + iconWidth + '.png');
+    var plusURL = chrome.extension.getURL('images/plus-' + iconWidth + '.png');
+    var $cardFront = $('<div>').addClass('face front').css({ 'background-image': 'url("' + logoURL + '")' });
+    var $cardBack = $('<div>').addClass('face back').css({ 'background-image': 'url("' + plusURL + '")' });
+
+    $imgContainer.prepend($('<div>', { class: 'flip' }));
+    var $cardContainer = $imgContainer.children('.flip');
     $cardContainer.append($('<div>', { class: 'card' }));
-    $cardContainer.children('.card').append($('<div>', { class: 'face front' }));
-    $cardContainer.children('.card').append($('<div>', { class: 'face back' }));
+    $cardContainer.children('.card').append($cardFront);
+    $cardContainer.children('.card').append($cardBack);
   }
 
-  // Home page stuff
-
-  function addZeHoverEffect() {
-    $('body').on('mouseenter', '.link', function() {
-
-      var $imgLink = $(this).closest('.lazy-hidden');
-      if ($imgLink.find('.flip').length === 0) {
-        addZeButton($imgLink);
-        $imgLink.find('.custom-icon-button').css({
+  function addZeHoverEffect(hoverElementClass) {
+    $('body').on('mouseenter', hoverElementClass, function() {
+      if (hoverElementClass === '.link') {
+        var $imgContainer = $(this).closest('.lazy-hidden');
+      } else if (hoverElementClass === '.photo_link') {
+        var $imgContainer = $(this).siblings('.photo_thumbnail__pulse_container');
+      }
+      if ($imgContainer.find('.flip').length === 0) {
+        addZeButton($imgContainer);
+        $imgContainer.find('.custom-icon-button').css({
           'top': '-10px',
-          'right': ($(this).width() - logoWidth - horizontalDistanceFromWindow) + 'px'
+          'right': ($(this).width() - iconWidth - horizontalDistanceFromWindow) + 'px'
         });
       } else {
-        $imgLink.children('.flip').children('div').show();
+        $imgContainer.children('.flip').children('div').show();
       }
 
       $(".flip").hover(function(){
@@ -109,82 +125,36 @@ $(function() {
         }
       });
 
-      $imgLink.find('.flip').one('click', function() {
-          var flipDiv = $(this);
-          var zeButtonFront = flipDiv.find('.face .front');
-          var zeButtonBack = flipDiv.find('.back');
-          var zeElem = flipDiv.closest('.lazy-hidden');
-          var styleAttrib = zeElem.attr('style');
-          var imagePath = (createPhotoUrl(styleAttrib)).replace(/"/g, "");
+      if (hoverElementClass === '.link') {
+        var styleAttrib = $imgContainer.attr('style');
+        var imagePath = (createPhotoUrl(styleAttrib)).replace(/"/g, "");
+      } else if (hoverElementClass === '.photo_link') {
+        var imagePath = ($(this).children('img').attr('src')).replace(/"/g, "");
+      }
 
-          flipDiv.attr('data-clicked', 'true');
-
-          chrome.runtime.onMessage.addListener(function(req, sender, sendResponse) {
-              if (req) {
-                  zeButtonFront.css({'background-image': 'url("chrome-extension://dmeifbfaplnedddldbeflojbbeeeejlm/images/check-50.png")'});
-                  zeButtonBack.css({'background-image': 'url("chrome-extension://dmeifbfaplnedddldbeflojbbeeeejlm/images/check-50.png")'});
-              }
-          });
-
-          getNativeDimensions(imagePath, parseImg);
-
-      });
+      addClickListener($imgContainer, imagePath);
 
     });
 
     $('body').on('mouseleave', '.photo.lazy-hidden', function() {
       $(this).children('.flip').children('div').hide();
     });
+  }
 
-    //Discover page stuff
+  function addClickListener($imgContainer, imagePath) { 
+    $imgContainer.find('.flip').one('click', function() {
+      var zeButtonBack = $(this).find('.face.back');
+      var checkURL = chrome.extension.getURL('/images/check-' + iconWidth + '.png');
 
-    $('body').on('mouseenter', '.photo_link', function () {
-      var $imgLink = $(this).siblings('.photo_thumbnail__pulse_container');
-      if ($imgLink.find('.flip').length === 0) {
-        addZeButton($imgLink);
-        $imgLink.find('.custom-icon-button').css({
-          'top': '-10px',
-          'right': ($(this).width() - logoWidth - horizontalDistanceFromWindow) + 'px'
-        });
-      } else {
-        $imgLink.children('.flip').children('div').show();
-      }
+      $(this).attr('data-clicked', 'true');
 
-      $(".flip").hover(function(){
-        if ($(this).data('clicked')) {
-          return;
-        } else {
-            $(this).find(".card").addClass("flipped");
-            return false;  
-        }
-      }, function() {
-        if ($(this).data('clicked')) {
-          return;
-        } else {
-            $(this).find(".card").removeClass("flipped");
-            return false;  
-        }
+      chrome.runtime.onMessage.addListener(function(req) {
+          if (req) {
+              zeButtonBack.css({'background-image': 'url("' + checkURL + '")'});
+          }
       });
 
-      $imgLink.find('.flip').one('click', function() {
-          var flipDiv = $(this);
-          var zeButtonFront = flipDiv.find('.face .front');
-          var zeButtonBack = flipDiv.find('.back');
-          var zeElem = $imgLink.siblings('.photo_link').children('img');
-          var imagePath = (zeElem.attr('src')).replace(/"/g, "");
-
-          flipDiv.attr('data-clicked', 'true');
-
-          chrome.runtime.onMessage.addListener(function(req, sender, sendResponse) {
-              if (req) {
-                  zeButtonFront.css({'background-image': 'url("chrome-extension://dmeifbfaplnedddldbeflojbbeeeejlm/images/check-50.png")'});
-                  zeButtonBack.css({'background-image': 'url("chrome-extension://dmeifbfaplnedddldbeflojbbeeeejlm/images/check-50.png")'});
-              }
-          });
-
-          getNativeDimensions(imagePath, parseImg);
-
-      });
+      getNativeDimensions(imagePath, sendImage);
     });
   }
 
@@ -195,16 +165,16 @@ $(function() {
   // Still need to handle grabbing imgs from individual profile gallery
 
     // $('body').on('mouseenter', '.photo_link', function() {
-  //   var $imgLink = $(this).siblings('.photo_thumbnail__pulse_container');
-  //   if ($imgLink.find('.custom-icon-button').length != 0) {
+  //   var $imgContainer = $(this).siblings('.photo_thumbnail__pulse_container');
+  //   if ($imgContainer.find('.custom-icon-button').length != 0) {
   //       return;
   //   } else {
-  //       addZeButton($imgLink);
+  //       addZeButton($imgContainer);
   //   }
 
-  //   $imgLink.children('.custom-icon-button').one('click', function() {
+  //   $imgContainer.children('.custom-icon-button').one('click', function() {
   //     // No idea why but couldn't traverse DOM the regular way...
-  //     var imgUrl = $imgLink.closest('.photo_link').context.firstElementChild.currentSrc;
+  //     var imgUrl = $imgContainer.closest('.photo_link').context.firstElementChild.currentSrc;
   //     console.log(imgUrl); 
   //   });
     
