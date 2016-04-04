@@ -4,8 +4,8 @@
 $(function() {
 
   const iconWidth = 38;
-  const MIN_WIDTH = 200;
-  const MIN_HEIGHT = 200;
+  const MIN_WIDTH = 150;
+  const MIN_HEIGHT = 150;
 
   // on document ready, checks if user is logged in, then displays the button accordingly
   chrome.storage.sync.get(function(value) {
