@@ -29,8 +29,8 @@ $(function() {
           var imagePath = (createPhotoUrl(styleAttrib)).replace(/"/g, "");
           break;
         case '.photo_link':
-          var $imgContainer = $(this).siblings('.photo_thumbnail__pulse_container');
-          var imagePath = ($(this).children('img').attr('src')).replace(/"/g, "");
+          $imgContainer = $(this).siblings('.photo_thumbnail__pulse_container');
+          imagePath = ($(this).children('img').attr('src')).replace(/"/g, "");
           break;
       }
 
@@ -44,15 +44,15 @@ $(function() {
         if ($(this).data('clicked')) {
           return;
         } else {
-            $(this).find(".card").addClass("flipped");
-            return false;  
+          $(this).find(".card").addClass("flipped");
+          return false;  
         }
       }, function() {
         if ($(this).data('clicked')) {
           return;
         } else {
-            $(this).find(".card").removeClass("flipped");
-            return false;  
+          $(this).find(".card").removeClass("flipped");
+          return false;  
         }
       });
 
@@ -114,12 +114,13 @@ $(function() {
       $(this).attr('data-clicked', 'true');
 
       chrome.runtime.onMessage.addListener(function(req) {
-          if (req) {
-              $zeButtonBack.css({'background-image': 'url("' + checkURL + '")'});
-          }
+        if (req) {
+          $zeButtonBack.css({'background-image': 'url("' + checkURL + '")'});
+        }
       });
 
       getNativeDimensions(imagePath);
+      
     });
   }
 
@@ -127,22 +128,22 @@ $(function() {
   function getNativeDimensions(imagePath) {
     var completePath = addZeHTTPS(imagePath);
     var output = {
-        url: completePath,
-        width: 0,
-        height: 0
+      url: completePath,
+      width: 0,
+      height: 0
     };
     var $img = $('<img>').attr({
-        src: completePath,
-        id: 'photonParseSizeTarget'
+      src: completePath,
+      id: 'photonParseSizeTarget'
     });
     $img.addClass('make-invis');
     $('body').append($img);
     $img.on('load', function(){
-        var $zeImg = $(this);
-        output.width = $zeImg.width();
-        output.height = $zeImg.height();
-        $(this).remove();
-        sendImage(output);
+      var $zeImg = $(this);
+      output.width = $zeImg.width();
+      output.height = $zeImg.height();
+      $(this).remove();
+      sendImage(output);
     });
   }
 
@@ -160,7 +161,7 @@ $(function() {
   // sends image url, width, and height to background script (popup.js)
   // popup.js can then send ajax request to the web app to add the photo to the user's collection
   function sendImage(imgObj) {
-      chrome.runtime.sendMessage({ url: imgObj.url, width: imgObj.width, height: imgObj.height });
+    chrome.runtime.sendMessage({ url: imgObj.url, width: imgObj.width, height: imgObj.height });
   }
 
   function removeZeButtonz() {

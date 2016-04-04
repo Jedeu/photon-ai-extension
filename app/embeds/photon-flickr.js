@@ -1,4 +1,5 @@
 'use strict';
+/* globals $:false, chrome:false, console:false */
 
 $(function(){
 
@@ -7,11 +8,11 @@ $(function(){
 
     // on document ready, check if user is logged in, then display the button accordingly
     chrome.storage.sync.get(function(value) {
-      if (value.user_id) {
-        monitorHover();
-      } else {
-        removeZeButtonz();
-      }
+        if (value.user_id) {
+            monitorHover();
+        } else {
+            removeZeButtonz();
+        }
     });
     
     // Add button animation
@@ -33,8 +34,8 @@ $(function(){
         var parts = styleAttrib.split("; ");
         var obj = {};
         for (var i = 0; i < parts.length; i++) {
-          var subParts = parts[i].split(': ');
-          obj[subParts[0]]=subParts[1];
+            var subParts = parts[i].split(': ');
+            obj[subParts[0]]=subParts[1];
         }
         return obj;
     }
@@ -95,18 +96,18 @@ $(function(){
             }
 
             $(".flip").hover(function(){
-              if ($(this).data('clicked')) {
-                return;
-              } else {
-                  $(this).find(".card").addClass("flipped");
-                  return false;  
-              }
+                if ($(this).data('clicked')) {
+                    return;
+                } else {
+                    $(this).find(".card").addClass("flipped");
+                    return false;  
+                }
             }, function() {
               if ($(this).data('clicked')) {
                 return;
               } else {
-                  $(this).find(".card").removeClass("flipped");
-                  return false;  
+                $(this).find(".card").removeClass("flipped");
+                return false;  
               }
             });
 
@@ -122,14 +123,15 @@ $(function(){
             var $flipDiv = $(this);
             var $zeButtonBack = $flipDiv.find('.face.back');
             var checkURL = chrome.extension.getURL('/images/check-' + iconWidth + '.png');
+            var imagePath;
             if (styleAttrib) {
-                var imagePath = (createPhotoUrl(styleAttrib).replace(/"/g, ""));
+                imagePath = (createPhotoUrl(styleAttrib).replace(/"/g, ""));
             }
             else {
                 // This case covers special a tags under "Trending"
                 var $zeElem = ($flipDiv.closest('.photo-list-photo-interaction-view')).siblings('a').children('.photo');
                 styleAttrib = $zeElem.attr('style');
-                var imagePath = (createPhotoUrl(styleAttrib).replace(/'/g, ""));
+                imagePath = (createPhotoUrl(styleAttrib).replace(/'/g, ""));
             }
 
             $flipDiv.attr('data-clicked', 'true');
@@ -141,9 +143,9 @@ $(function(){
                 imagePath = imagePath.replace(/(_[a-z])(\.jpg+)$/g, "");
             }
 
-            chrome.runtime.onMessage.addListener(function(req, sender, sendResponse) {
+            chrome.runtime.onMessage.addListener(function(req) {
                 if (req) {
-                    $zeButtonBack.css({'background-image': 'url("chrome-extension://dmeifbfaplnedddldbeflojbbeeeejlm/images/check-38.png")'});
+                    $zeButtonBack.css({'background-image': 'url("' + checkURL + '")'});
                 }
             });
 
