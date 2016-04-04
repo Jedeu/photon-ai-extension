@@ -2,8 +2,12 @@
 
 $(function(){
 
+    // remember to change this in css too (i.e. for div dimensions)!
+    const iconWidth = 38;
+
+    // on document ready, check if user is logged in, then display the button accordingly
     chrome.storage.sync.get(function(value) {
-      if (value['user_id']) {
+      if (value.user_id) {
         monitorHover();
       } else {
         removeZeButtonz();
@@ -11,16 +15,21 @@ $(function(){
     });
     
     // Add button animation
-    function addZeButton($imgDiv) {
-        $imgDiv.prepend($('<div>', { class: 'flip' }));
-        var $cardContainer = $imgDiv.children('.flip');
+    function addZeButton($imgContainer) {
+        var logoURL = chrome.extension.getURL('images/logo-' + iconWidth + '.png');
+        var plusURL = chrome.extension.getURL('images/plus-' + iconWidth + '.png');
+        var $cardFront = $('<div>').addClass('face front').css({ 'background-image': 'url("' + logoURL + '")' });
+        var $cardBack = $('<div>').addClass('face back').css({ 'background-image': 'url("' + plusURL + '")' });
+
+        $imgContainer.prepend($('<div>', { class: 'flip' }));
+        var $cardContainer = $imgContainer.children('.flip');
         $cardContainer.append($('<div>', { class: 'card' }));
-        $cardContainer.children('.card').append($('<div>', { class: 'face front' }));
-        $cardContainer.children('.card').append($('<div>', { class: 'face back' }));
+        $cardContainer.children('.card').append($cardFront);
+        $cardContainer.children('.card').append($cardBack);
     }
 
-    // Parses the style tag in Flickr's embedded html
-    function cleanUpStyle(styleAttrib) {
+    // Parses the styleAttrib string into a hash of styles
+    function createStyleObj(styleAttrib) {
         var parts = styleAttrib.split("; ");
         var obj = {};
         for (var i = 0; i < parts.length; i++) {
@@ -30,9 +39,9 @@ $(function(){
         return obj;
     }
 
-    // Handles Flickr's weird way of embedding the img URL in the css code
+    // Gets the photo URL from the style attribute of the photo container
     function createPhotoUrl(styleAttrib) {
-        var cleanStyle = cleanUpStyle(styleAttrib);
+        var cleanStyle = createStyleObj(styleAttrib);
         var photoUrl = cleanStyle['background-image'];
         var linkLinter = /\(([^\)]+)\)/;
         var theLink = ((photoUrl.match(linkLinter)[1]));
@@ -46,7 +55,8 @@ $(function(){
         return underScoreFragment.length > 1;
     }
 
-    function getNativeDimensions(imagePath, callback) {
+    // makes an invisible image in order to get the dimensions of the full size image
+    function getNativeDimensions(imagePath) {
         var completePath = 'https:' + imagePath + '_b.jpg';
         var output = {
             url: completePath,
@@ -64,22 +74,24 @@ $(function(){
             output.width = $zeImg.width();
             output.height = $zeImg.height();
             $(this).remove();
-            callback(output);
+            sendImage(output);
         });
     }
 
-    function parseImg(imgObj) {
+    // sends image url, width, and height to background script (popup.js)
+    // popup.js can then send ajax request to the web app to add the photo to the user's collection
+    function sendImage(imgObj) {
         chrome.runtime.sendMessage({ url: imgObj.url, width: imgObj.width, height: imgObj.height });
     }
 
     function monitorHover() {
         // Body selector case for images wrapped in 'a' tags
         $('body').on('mouseenter', '.overlay', function() {
-            var $imgDiv = $(this).closest('.photo-list-photo-interaction');
-            if ($imgDiv.find('.flip').length !== 0) {
+            var $imgContainer = $(this).closest('.photo-list-photo-interaction');
+            if ($imgContainer.find('.flip').length !== 0) {
                 return;
             } else {
-                addZeButton($imgDiv);
+                addZeButton($imgContainer);
             }
 
             $(".flip").hover(function(){
@@ -96,44 +108,47 @@ $(function(){
                   $(this).find(".card").removeClass("flipped");
                   return false;  
               }
-
             });
 
-            $imgDiv.find('.flip').one('click', function() {
-                var flipDiv = $(this);
-                var zeButtonFront = flipDiv.find('.face .front');
-                var zeButtonBack = flipDiv.find('.back');
-                var zeElem = $imgDiv.closest('.photo-list-photo-view');
-                var styleAttrib = zeElem.attr('style');
-                if (styleAttrib) {
-                    var imagePath = (createPhotoUrl(styleAttrib).replace(/"/g, ""));
+            var styleAttrib = $imgContainer.closest('.photo-list-photo-view').attr('style');
+
+            addClickListener($imgContainer, styleAttrib);
+
+        });
+    }
+
+    function addClickListener($imgContainer, styleAttrib) {
+        $imgContainer.find('.flip').one('click', function() {
+            var $flipDiv = $(this);
+            var $zeButtonBack = $flipDiv.find('.face.back');
+            var checkURL = chrome.extension.getURL('/images/check-' + iconWidth + '.png');
+            if (styleAttrib) {
+                var imagePath = (createPhotoUrl(styleAttrib).replace(/"/g, ""));
+            }
+            else {
+                // This case covers special a tags under "Trending"
+                var $zeElem = ($flipDiv.closest('.photo-list-photo-interaction-view')).siblings('a').children('.photo');
+                styleAttrib = $zeElem.attr('style');
+                var imagePath = (createPhotoUrl(styleAttrib).replace(/'/g, ""));
+            }
+
+            $flipDiv.attr('data-clicked', 'true');
+
+            //If image path has more than one _, then take out the last _ and replace
+            if (underscoresInPath(imagePath)) {
+                imagePath = imagePath.replace(/\.jpg/g, "");
+            } else {
+                imagePath = imagePath.replace(/(_[a-z])(\.jpg+)$/g, "");
+            }
+
+            chrome.runtime.onMessage.addListener(function(req, sender, sendResponse) {
+                if (req) {
+                    $zeButtonBack.css({'background-image': 'url("chrome-extension://dmeifbfaplnedddldbeflojbbeeeejlm/images/check-38.png")'});
                 }
-                else {
-                    // This case covers special a tags under "Trending"
-                    var zeElem = (flipDiv.closest('.photo-list-photo-interaction-view')).siblings('a').children('.photo');
-                    var styleAttrib = zeElem.attr('style');
-                    var imagePath = (createPhotoUrl(styleAttrib).replace(/'/g, ""));
-                }
-
-                flipDiv.attr('data-clicked', 'true');
-
-                //If image path has more than one _, then take out the last _ and replace
-                if (underscoresInPath(imagePath)) {
-                    imagePath = imagePath.replace(/\.jpg/g, "");
-                } else {
-                    imagePath = imagePath.replace(/(_[a-z])(\.jpg+)$/g, "");
-                }
-
-                chrome.runtime.onMessage.addListener(function(req, sender, sendResponse) {
-                    if (req) {
-                        zeButtonFront.css({'background-image': 'url("chrome-extension://dmeifbfaplnedddldbeflojbbeeeejlm/images/check-38.png")'});
-                        zeButtonBack.css({'background-image': 'url("chrome-extension://dmeifbfaplnedddldbeflojbbeeeejlm/images/check-38.png")'});
-                    }
-                });
-
-                getNativeDimensions(imagePath, parseImg);
-
             });
+
+            getNativeDimensions(imagePath);
+
         });
     }
 
